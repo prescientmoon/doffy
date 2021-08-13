@@ -1,0 +1,130 @@
+dependencies:
+  '@thi.ng/matrices': 1.0.1
+  '@thi.ng/vectors': 6.0.7
+devDependencies:
+  bower: 1.8.12
+lockfileVersion: 5.1
+packages:
+  /@thi.ng/api/7.1.9:
+    dev: false
+    resolution:
+      integrity: sha512-VloA25aKIi1rKTW9lmq+PyR8sIfHp5oqh0LeniaKG2FgKHFyoQ8TzUM+wPLtluj+AYc3LI3iCWSVqaZx5xYbqw==
+  /@thi.ng/arrays/1.0.1:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+      '@thi.ng/checks': 2.9.10
+      '@thi.ng/compare': 1.3.33
+      '@thi.ng/equiv': 1.0.45
+      '@thi.ng/errors': 1.3.4
+      '@thi.ng/random': 2.4.6
+    dev: false
+    resolution:
+      integrity: sha512-Rm5Z4gs+ZgJmFbebVAcR1uRKF1vo2GVLfeUWwRP9TL2uUbccuLXA8zjGReqqQ+2etThRk3a27ADDXlJDAi/Sdw==
+  /@thi.ng/binary/2.2.9:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+    dev: false
+    resolution:
+      integrity: sha512-3nlz3Plwb5hCxZKwXYjvsD7rpzhHHdIjEt6kin90nwWlg3h/sKMCOTksOOcfdIoSBrptiCJYAh2uO0K1jBdxNg==
+  /@thi.ng/checks/2.9.10:
+    dependencies:
+      tslib: 2.3.0
+    dev: false
+    resolution:
+      integrity: sha512-jTcbjIMuO0rzo7VIRFJLzvwaSjbwFraul+f3WzGX6bGlJNqaawZI23Ermbs3N0UWG5U8MnBlQaNVBeeK2JcgYg==
+  /@thi.ng/compare/1.3.33:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+    dev: false
+    resolution:
+      integrity: sha512-OYMWEzSUXLQ9jv/wUZjZ+sSSQUTn4xaSklHPqNms2o4Uw3m34sQJqrrGTFoLKYZCeuFR8H8DMGK0AjD1tb+DfQ==
+  /@thi.ng/compose/1.4.35:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+      '@thi.ng/errors': 1.3.4
+    dev: false
+    resolution:
+      integrity: sha512-k8WIv7ivlnvXYWE2UfX2xJP25c/ojeESUidfX2Xr7zyKGGhUIq4omSlaTBEo0Nt5PxGbKUr8rG/wOscic5Cp5g==
+  /@thi.ng/equiv/1.0.45:
+    dev: false
+    resolution:
+      integrity: sha512-tdXaJfF0pFvT80Q7BOlhc7H7ja/RbVGzlGpE4LqjDWfXPPbLYwmq6EbQuHWeXuvT0qe+BsGnuO5UXAR5B8oGGQ==
+  /@thi.ng/errors/1.3.4:
+    dev: false
+    resolution:
+      integrity: sha512-hTk71OPKnioN349sdj2DAoY+69eSerB3MN4Zwz6mosr1QFzIMkfkNOtBeC+Gm0yi0V0EY5LeBYFgqb3oXbtTbw==
+  /@thi.ng/hex/1.0.3:
+    dev: false
+    resolution:
+      integrity: sha512-zSIlUwii077ZxWZTsBXU3yMO0s/ciH1fmEC50CaODZG2evGm+IAY5ZTxBQTpruOyCmwheK+8sMzWH82hgj0f2Q==
+  /@thi.ng/math/4.0.5:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+    dev: false
+    resolution:
+      integrity: sha512-qAn2D5sukDvYrlV8/uV6C9Hj+jCjMzRZRuWYhX/Er7/Cw4MWPTPpbFiYjvKh4nOS7KiHvWX+TWjOng8h8Or+7w==
+  /@thi.ng/matrices/1.0.1:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+      '@thi.ng/checks': 2.9.10
+      '@thi.ng/math': 4.0.5
+      '@thi.ng/vectors': 6.0.7
+    dev: false
+    resolution:
+      integrity: sha512-L4Nrjelo2m9b60eCI0tsJ7xZ4IkE3gVEFHXA12j9V0wqirj6IMHdbH/67ZJnAKAMJCK1eG1G2CxVxnkIowg/qw==
+  /@thi.ng/memoize/2.1.19:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+    dev: false
+    resolution:
+      integrity: sha512-zBKomOPhuJaufYHNmJzq6+J8ddk8vMuruyT+QbpuZfla5dexc90yexV6rc4Ht4HRAIki/lUYwKkJ+jkCl1LP1g==
+  /@thi.ng/random/2.4.6:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+      '@thi.ng/checks': 2.9.10
+      '@thi.ng/hex': 1.0.3
+    dev: false
+    resolution:
+      integrity: sha512-bRzg6/VgjlmQHW8Te4zXivBTk21AVldwdDc82zIi3TbUOB8wubLDPnKAhAGhDg3KDU5X932WrfH3uIlaJqaBgw==
+  /@thi.ng/transducers/7.8.3:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+      '@thi.ng/arrays': 1.0.1
+      '@thi.ng/checks': 2.9.10
+      '@thi.ng/compare': 1.3.33
+      '@thi.ng/compose': 1.4.35
+      '@thi.ng/errors': 1.3.4
+      '@thi.ng/math': 4.0.5
+      '@thi.ng/random': 2.4.6
+    dev: false
+    resolution:
+      integrity: sha512-74yb/Ck6nrLQGfQUO9dnGDGrQgK4OBPW9PTlxqhwmEV5MfxTeadWVSsE4Nyx6eKNHOU5DohTbprJ0QXp2ZIQhg==
+  /@thi.ng/vectors/6.0.7:
+    dependencies:
+      '@thi.ng/api': 7.1.9
+      '@thi.ng/binary': 2.2.9
+      '@thi.ng/checks': 2.9.10
+      '@thi.ng/equiv': 1.0.45
+      '@thi.ng/errors': 1.3.4
+      '@thi.ng/math': 4.0.5
+      '@thi.ng/memoize': 2.1.19
+      '@thi.ng/random': 2.4.6
+      '@thi.ng/transducers': 7.8.3
+    dev: false
+    resolution:
+      integrity: sha512-WkcN0zTB9mX/9LJoB9wBG7c6Gr3RuZczqkMMHV/FvpOvb9QHuJ0nfdwXgcZBQl32Ss6br0kHNMW2UkJVVC+YFQ==
+  /bower/1.8.12:
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    hasBin: true
+    resolution:
+      integrity: sha512-u1xy9SrwwoPlgjuHNjhV+YUPVdqyBj2ALBxuzeIUKXaPI2i2xypGgxqXkuHcITGdi5yBj5JuXgyMvgiWiS1S3Q==
+  /tslib/2.3.0:
+    dev: false
+    resolution:
+      integrity: sha512-N82ooyxVNm6h1riLCoyS9e3fuJ3AMG2zIZs2Gd1ATcSFjSA23Q0fzjjZeh0jbJvWVDZ0cJT8yaNNaaXHzueNjg==
+specifiers:
+  '@thi.ng/matrices': ^1.0.1
+  '@thi.ng/vectors': ^6.0.7
+  bower: ^1.8.12

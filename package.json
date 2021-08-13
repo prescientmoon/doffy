@@ -1,0 +1,15 @@
+{
+  "devDependencies": {
+    "bower": "^1.8.12"
+  },
+  "scripts": {
+    "test": "spago -x ./spago.test.dhall test",
+    "generate-bower": "spago bump-version --no-dry-run major",
+    "pulp-build": "bower install && pulp build",
+    "bump": "spago bump-version --no-dry-run"
+  },
+  "dependencies": {
+    "@thi.ng/matrices": "^1.0.1",
+    "@thi.ng/vectors": "^6.0.7"
+  }
+}
