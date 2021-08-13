@@ -1,29 +1,33 @@
-# Ask
+# Doffy
 
-Typeclass based implicit arguments. Think `Reader` but without the burden of doing everything inside do-notation.
+Purescript based canvas rendering framework.
 
-Featured usecases:
+> Note: I am in the process of extracting the library from one of my side project. At the moment this repo only contains a small part of it.
 
-- Passing a `CanvasRenderingContext2D` down a large tree
+Notable features include:
 
-For the full documentation check out [pursuit](TODO)
+- FRP based rendering with TEA-like actions
+- svg-like event listeners
+- flexbox-inspired layouting system
+- multi-step rendernig, where one step can query metadata collected from previous steps:
+  - local transform matrices
+  - geometries
+  - relative & absolute bounds
 
-## Example
+As a testament to the extensability of the library, both the `Padding` and the `Flex` components have been implemented without adding any new branches to the `Geometry` adt.
 
-```purescript
-foo :: Ask Int => Int -> String
-foo bar = show (ask + bar)
+## Planned features
 
--- same as `(provide 3 foo) 4`
-buzz :: String
-buzz = provide 3 (foo 4)  -- 7
+- layers:
+  at the moment each render step represents a layer. I would to support layers nested down a larger tree.
+- multi-canvas rendering:
+  display data on more than one canvas for minimal re-renders
+- hover-events (eg: onhoverstart, onhoverend). Right now hovering is pull based (the programmer asks the library what is curently being hovered over)
 
-goo :: String
-goo = provide 2 (show $ askFor _Int) -- passing a proxy in order to avoid a type annotation
+### Would be nice to have, no idea if I will ever get to it
 
-blue :: Number
-blue = provide 4.2 $ local floor (foo 3) -- 7
-```
+- chrome extension adding a geometry inspector
+- multiple back ends (svg, webgl, etc)
 
 ## Development
 

@@ -1,4 +1,4 @@
-{ name = "ask"
+{ name = "doffy"
 , dependencies =
   [ "arrays"
   , "ask"
