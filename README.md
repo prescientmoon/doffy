@@ -2,7 +2,7 @@
 
 Purescript based canvas rendering framework.
 
-> Note: I am in the process of extracting the library from one of my side project. At the moment this repo only contains a small part of it.
+> Note: I am in the process of extracting the library from one of my side projects. At the moment this repo only contains a small part of it.
 
 Notable features include:
 
