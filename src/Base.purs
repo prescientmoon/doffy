@@ -7,28 +7,26 @@ import Control.Alt ((<|>))
 import Control.Ask (class Ask, ask)
 import Control.Plus (empty)
 import Data.Array as Array
-import Data.Array.NonEmpty as NonEmptyArray
-import Data.Exists (Exists, mkExists, runExists)
+import Data.Exists (Exists)
 import Data.Foldable (foldr)
+import Data.Functor.Mu (Mu(..))
 import Data.HashMap (HashMap)
 import Data.HashMap as HashMap
+import Data.HashSet (HashSet)
+import Data.HashSet as HashSet
 import Data.Hashable (class Hashable)
 import Data.Lazy (Lazy)
 import Data.Lazy as Lazy
-import Data.Lens (Lens', _Just, over, traversed)
-import Data.Lens.Iso.Newtype (_Newtype)
+import Data.Lens (Lens', over)
 import Data.Lens.Record (prop)
-import Data.Maybe (Maybe(..), maybe)
-import Data.Newtype (class Newtype, unwrap)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple.Nested (type (/\))
 import Data.Undefined.NoProblem (Opt)
 import Data.Undefined.NoProblem as Opt
 import Data.Undefined.NoProblem.Closed as Closed
 import Doffy.AABB (AABBLike, AABB)
 import Doffy.AABB as AABB
-import Doffy.Exists (mapExists)
 import Doffy.Forest (Forest)
-import Doffy.Forest as Forest
 import Doffy.MouseButton (MouseButtons)
 import Doffy.Transform (TransformMatrix, inverse, multiplyVector)
 import Doffy.Transform as Transform
@@ -37,8 +35,10 @@ import Doffy.Vector (Vec2, distanceSquared, dotProduct, multiplyScalar, vec2)
 import Geometry.TextBaseline (TextBaseline)
 import Graphics.Canvas (Context2D)
 import Math (pow)
+import Matryoshka (Algebra, cata)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
+import Unsafe.Coerce (unsafeCoerce)
 import Web.UIEvent.MouseEvent (MouseEvent)
 
 ---------- Types
@@ -58,33 +58,32 @@ type TextMetrics =
   , fontBoundingBoxAscent :: Number
   }
 
-newtype MapActionF id to from = MapActionF
-  { target :: Geometry id from
-  , map :: from -> to
-  }
+data TagFilter a
+  = Whitelist (HashSet a)
+  | Blacklist (HashSet a)
+
+-- | The underlying data type used to represent geometries. Usually wrapped in `Mu`
+data GeometryF id action recurse
+  = Circle (Record (CircleAttributes id action recurse + GeometryAttributes id action recurse ()))
+  | Rect (Record (RectAttributes id action recurse + GeometryAttributes id action recurse ()))
+  | Line (Record (LineAttributes id action recurse + GeometryAttributes id action recurse ()))
+  | Text (Record (TextAttributes id action recurse + GeometryAttributes id action recurse ()))
+  | None
+
+  | Group (Record (GroupAttributes id action recurse + GeometryAttributes id action recurse ()))
+  | Transform (Record (TransformAttributes id action recurse + GeometryAttributes id action recurse ()))
+  -- | Useful when metadata about the geometry tree needs to be queried
+  | Reporter (Record (ReporterAttributes Id id action recurse ()))
 
 -- | A geometry represents anything the library can render to the screen.
 -- | The first type parameter represents the id we can identify important points in the trees by
 -- | The second type parameters represents the actions propagated on events
-data Geometry :: Type -> Type -> Type
-data Geometry id action
-  = Circle (Record (CircleAttributes id action + GeometryAttributes id action ()))
-  | Rect (Record (RectAttributes id action + GeometryAttributes id action ()))
-  | Line (Record (LineAttributes id action + GeometryAttributes id action ()))
-  | Group (Record (GroupAttributes id action + GeometryAttributes id action ()))
-  | Text (Record (TextAttributes id action + GeometryAttributes id action ()))
-  | Transform (Record (TransformAttributes id action + GeometryAttributes id action ()))
-  -- | Useful when the bounds used for layouting need to be diffrent from the bounds used for rendering.
-  | LockBounds (Record (LockBoundsAttributes id action ()))
-  -- | Useful for scoping the action type
-  | MapAction (Exists (MapActionF id action))
-  -- | Useful when metadata about the geometry tree needs to be queried
-  | Reporter (Record (ReporterAttributes Id id action ()))
-  | None
+type Geometry id action = Mu (GeometryF id action)
 
-type Attributes = Type -> Type -> Row Type -> Row Type
+type Attributes = Type -> Type -> Type -> Row Type -> Row Type
 
-type UnknownActionGeometry id = Exists (Geometry id)
+newtype UnknownActionGeometryF id action = UnknownActionGeometry (Geometry id action)
+type UnknownActionGeometry id = Exists (UnknownActionGeometryF id)
 
 -- | Indexed metrics of the data a reporter reported
 type ReporterOutput id =
@@ -97,24 +96,25 @@ type ReporterOutput id =
 
 ---------- Attributes most shapes contain
 type EventAttributes :: Attributes
-type EventAttributes id action r =
+type EventAttributes id action recurse remaining =
   ( onClick :: Opt (EventHandler CanvasMouseEvent action)
   , onMousedown :: Opt (EventHandler CanvasMouseEvent action)
   , onMouseup :: Opt (EventHandler CanvasMouseEvent action)
   , onMouseMove :: Opt (EventHandler CanvasMouseEvent action)
-  | r
+  | remaining
   )
 
 type GeometryAttributes :: Attributes
-type GeometryAttributes id action r =
+type GeometryAttributes id action recurse remaining =
   ( fill :: Opt String
   , stroke :: Opt String
   , weight :: Opt Number
   , alpha :: Opt Number
+  , tags :: Opt (Array String)
 
   -- Here for debugging only (rn)
   , label :: Opt String
-  | EventAttributes id action r
+  | EventAttributes id action recurse remaining
   )
 
 type LayeredGeometry id action = Int /\ Geometry id action
@@ -122,74 +122,68 @@ type MultiStepRenderer id action = LayeredGeometry id action /\ Array (ReporterO
 
 ---------- Attribute types for individual shapes
 type RectAttributes :: Attributes
-type RectAttributes id a r = AABBLike r
+type RectAttributes id action recurse remaining = AABBLike remaining
 
 type CircleAttributes :: Attributes
-type CircleAttributes id a r = (position :: Vec2, radius :: Number | r)
+type CircleAttributes id action recurse remaining = (position :: Vec2, radius :: Number | remaining)
 
 type GroupAttributes :: Attributes
-type GroupAttributes id action r = (children :: Array (Geometry id action) | r)
+type GroupAttributes id action recurse remaining = (children :: Array recurse | remaining)
 
 type TextAttributes :: Attributes
-type TextAttributes id a r =
+type TextAttributes id action recurse remaining =
   ( position :: Vec2
   , text :: String
   , baseline :: Opt TextBaseline
   , font :: Opt String
-  | r
+  | remaining
   )
 
 type TransformAttributes :: Attributes
-type TransformAttributes id action r =
+type TransformAttributes id action recurse remaining =
   ( transform :: TransformMatrix
-  , target :: Geometry id action
-  | r
-  )
-
-type LockBoundsAttributes :: Attributes
-type LockBoundsAttributes id action r =
-  ( bounds :: Lazy (Maybe AABB)
-  , target :: Geometry id action
-  | r
+  , target :: recurse
+  | remaining
   )
 
 type ReporterAttributes :: (Type -> Type) -> Attributes
-type ReporterAttributes f id action r =
+type ReporterAttributes f id action recurse remaining =
   ( id :: id
-  , target :: Geometry id action
+  , target :: recurse
   , reportAbsoluteBounds :: f Boolean
   , reportRelativeBounds :: f Boolean
   , reportTransform :: f Boolean
   , reportGeometry :: f Boolean
-  | r
+  | remaining
   )
 
 type LineAttributes :: Attributes
-type LineAttributes id action r =
+type LineAttributes id action recurse remaining =
   ( from :: Vec2
   , to :: Vec2
   , dash :: Opt (Array Number)
   , dashOffset :: Opt Number
-  | r
+  | remaining
   )
 
 ---------- Constructor types
+type GeometryConstructor :: Attributes -> Type
 type GeometryConstructor extra =
   forall given action id
-   . Closed.Coerce given (Record (extra id action + GeometryAttributes id action ()))
+   . Closed.Coerce given (Record (extra id action (Geometry id action) + GeometryAttributes id action (Geometry id action) ()))
   => given
   -> Geometry id action
 
 ---------- Constructors
 rect :: GeometryConstructor RectAttributes
-rect = Closed.coerce >>> Rect
+rect = Closed.coerce >>> Rect >>> In
 
 circle :: GeometryConstructor CircleAttributes
-circle = Closed.coerce >>> Circle
+circle = Closed.coerce >>> Circle >>> In
 
 -- | Group multiple geometries together
 group :: GeometryConstructor GroupAttributes
-group = Closed.coerce >>> go
+group = Closed.coerce >>> go >>> In
   where
   go attributes@{ children }
     | Array.null children = None
@@ -197,33 +191,13 @@ group = Closed.coerce >>> go
 
 -- | Apply a transform matrix to a geometry
 transform :: GeometryConstructor TransformAttributes
-transform = Closed.coerce >>> Transform
-
--- | Locks the bounds of the children geometry and then applies a function over it.
--- | Useful for applying some offset without changing the layout.
-lockBounds :: forall id action. Ask Context2D => (Geometry id action -> Geometry id action) -> Geometry id action -> Geometry id action
-lockBounds f geometry = LockBounds { target: f geometry, bounds: Lazy.defer \_ -> bounds geometry }
+transform = Closed.coerce >>> Transform >>> In
 
 text :: GeometryConstructor TextAttributes
-text = Closed.coerce >>> Text
+text = Closed.coerce >>> Text >>> In
 
 line :: GeometryConstructor LineAttributes
-line = Closed.coerce >>> Line
-
--- | Scope the action of a geometry.
--- | Ex: 
--- | ```purescript
--- | foo :: Geometry Foo A
--- | foo = ...
--- | 
--- | aToB :: A -> B
--- | aToB = ...
--- |
--- | bar :: Geometry Foo B
--- | bar = mapAction aToB foo 
--- | ````
-mapAction :: forall id from to. (from -> to) -> Geometry id from -> Geometry id to
-mapAction map target = { target, map } # MapActionF # mkExists # MapAction
+line = Closed.coerce >>> Line >>> In
 
 -- | A reporter is a component which caches metadata like:
 -- |  - the absolute positions of nodes
@@ -231,10 +205,14 @@ mapAction map target = { target, map } # MapActionF # mkExists # MapAction
 -- |  - local transform matrices
 -- |  - actual geometry 
 -- | for later use.
-reporter :: forall given action id. Closed.Coerce given (Record (ReporterAttributes Opt id action ())) => given -> Geometry id action
-reporter = Closed.coerce >>> withDefaults >>> Reporter
+reporter
+  :: forall given action id
+   . Closed.Coerce given (Record (ReporterAttributes Opt id action (Geometry id action) ()))
+  => given
+  -> Geometry id action
+reporter = Closed.coerce >>> withDefaults >>> Reporter >>> In
   where
-  withDefaults :: Record (ReporterAttributes Opt id action ()) -> _
+  withDefaults :: Record (ReporterAttributes Opt id action _ ()) -> _
   withDefaults incomplete =
     { target: incomplete.target
     , id: incomplete.id
@@ -249,77 +227,82 @@ annotate :: forall id action. id -> Geometry id action -> Geometry id action
 annotate id target = reporter { id, target, reportAbsoluteBounds: true }
 
 ---------- Helpers
+coerceGeometry :: forall id action from to. GeometryF id action from -> Maybe (GeometryF id action to)
+coerceGeometry (Reporter _) = Nothing
+coerceGeometry (Transform _) = Nothing
+coerceGeometry (Group _) = Nothing
+coerceGeometry a = Just $ unsafeCoerce a
+
 translate :: forall id action. Vec2 -> Geometry id action -> Geometry id action
-translate amount (Circle attributes) =
-  Circle $ over _position ((+) amount) attributes
-translate amount (Rect attributes) =
-  Rect $ over _position ((+) amount) attributes
-translate amount (Text attributes) =
-  Text $ over _position ((+) amount) attributes
-translate amount (Line attributes) = Line attributes
-  { from = amount + attributes.from
-  , to = amount + attributes.to
+translate amount (In None) = In None
+translate amount (In (Transform attributes)) = In
+  $ Transform
+  $ over _transform (_ <> Transform.translate amount) attributes
+translate amount target = transform
+  { transform: Transform.translate amount
+  , target
   }
-translate amount (Group attributes) =
-  Group $ over (_children <<< traversed) (translate amount) attributes
-translate amount (Reporter attributes) =
-  Reporter $ over _target (translate amount) attributes
-translate amount (Transform attributes) =
-  Transform $ over _transform (_ <> Transform.translate amount) attributes
-translate amount (LockBounds attributes) = LockBounds
-  { target: translate amount attributes.target
-  , bounds: attributes.bounds <#> over (_Just <<< _position) ((+) amount)
-  }
-translate amount (MapAction existential) = MapAction $ mapExists mapInner existential
+
+filteredBounds :: forall id action. Ask Context2D => TagFilter String -> Algebra (GeometryF id action) (Lazy (Maybe AABB))
+filteredBounds filter = algebra
   where
-  mapInner :: MapActionF id action ~> MapActionF id action
-  mapInner = over (_Newtype <<< _target) $ translate amount
-translate amount None = None
+  algebra :: Algebra (GeometryF id action) (Lazy (Maybe AABB))
+  algebra geom
+    | applyFilter geom = Lazy.defer
+        \_ -> boundsAlgebra $ map Lazy.force geom
+    | otherwise = pure Nothing
+
+  tagIsAllowed tag = case filter of
+    Whitelist set -> HashSet.member tag set
+    Blacklist set -> not $ HashSet.member tag set
+
+  tagsAreAllowed = Array.all tagIsAllowed
+
+  applyFilter geometry = attributes geometry true
+    \{ tags } -> case Opt.toMaybe tags of
+      Just tags -> tagsAreAllowed tags
+      _ -> true
+
+bounds :: forall id action. Ask Context2D => Geometry id action -> (Maybe AABB)
+bounds = cata boundsAlgebra
 
 -- | Calculate the minimum rectangle needed to surround the shape
-bounds :: forall id action. Ask Context2D => Geometry id action -> Maybe AABB
-bounds (Circle attributes) = Just
+boundsAlgebra :: forall id action. Ask Context2D => Algebra (GeometryF id action) (Maybe AABB)
+boundsAlgebra (Circle attributes) = Just
   { position: attributes.position - radius2
   , size: ((*) 2.0) <$> radius2
   }
   where
   radius2 = vec2 attributes.radius attributes.radius
-bounds (Rect { position, size }) = Just { position, size }
-bounds (Group { children }) = foldr merger Nothing $ bounds <$> children
+boundsAlgebra (Rect { position, size }) = Just { position, size }
+boundsAlgebra (Group { children }) = foldr merger Nothing children
   where
   merger = case _, _ of
     Just a, Just b -> Just $ AABB.union a b
     a, b -> a <|> b
-bounds (LockBounds attributes) = Lazy.force attributes.bounds
-bounds (Transform attributes) = do
-  innerBounds <- bounds attributes.target
-  AABB.fromPoints $ points $ Transform attributes
-bounds (Text attributes) = Just do
+boundsAlgebra (Transform attributes) = ado
+  innerBounds <- attributes.target
+  in
+    AABB.points innerBounds
+      # map (multiplyVector attributes.transform)
+      # AABB.fromPoints1
+boundsAlgebra (Text attributes) = Just do
   let metrics = measureText ask attributes.font attributes.text
   { position: attributes.position
   , size: vec2 metrics.width (metrics.fontBoundingBoxAscent)
   }
-bounds (MapAction inner) = inner # runExists (unwrap >>> _.target >>> bounds)
-bounds (Reporter { target }) = bounds target
-bounds (Line { from, to }) = AABB.fromPoints [ from, to ]
-bounds None = Nothing
+boundsAlgebra (Reporter { target }) = target
+boundsAlgebra (Line { from, to }) = AABB.fromPoints [ from, to ]
+boundsAlgebra None = Nothing
 
--- | Returns a polygon surrounding the shape
-points :: forall id action. Ask Context2D => Geometry id action -> Array Vec2
-points (Transform { transform, target }) = points target <#> multiplyVector transform
-points (Reporter { target }) = points target
-points (Line { from, to }) = [ from, to ]
-points a = bounds a # maybe [] (AABB.points >>> NonEmptyArray.toArray)
-
-pointInside :: forall id action. Ask Context2D => Vec2 -> Geometry id action -> Boolean
-pointInside point (Circle attributes) =
+pointInside :: forall id action. Ask Context2D => Algebra (GeometryF id action) (Vec2 -> Boolean)
+pointInside (Circle attributes) point =
   distanceSquared point attributes.position < attributes.radius `pow` 2.0
-pointInside point (Group { children }) = Array.any (pointInside point) children
-pointInside point (LockBounds { target }) = pointInside point target
-pointInside point shape@(Transform { target }) = pointInside projected target
+pointInside (Group { children }) point = Array.any (\child -> child point) children
+pointInside shape@(Transform { target }) point = target projected
   where
   projected = toLocalCoordinates shape point
-pointInside point (Line { from, to, weight }) = distanceSquared referencePoint point <= actualWeight `pow` 2.0
+pointInside (Line { from, to, weight }) point = distanceSquared referencePoint point <= actualWeight `pow` 2.0
   where
   referencePoint
     | length <= 0.0 = from
@@ -329,49 +312,48 @@ pointInside point (Line { from, to, weight }) = distanceSquared referencePoint p
         from + relative `multiplyScalar` product
   length = distanceSquared from to
   actualWeight = Opt.fromOpt 1.0 weight
-pointInside point shape = bounds shape # maybe false (AABB.pointInside point)
+pointInside shape point = fromMaybe false do
+  shape <- coerceGeometry shape
+  shapeBounds <- bounds $ In shape
+  Just $ AABB.pointInside point shapeBounds
 
 -- TODO: find a way to cache the inverse
-toLocalCoordinates :: forall id action. Geometry id action -> Vec2 -> Vec2
-toLocalCoordinates (Transform { target, transform }) point = multiplyVector (inverse transform) point
+toLocalCoordinates :: forall id action child. GeometryF id action child -> Vec2 -> Vec2
+toLocalCoordinates (Transform { transform }) point = multiplyVector (inverse transform) point
 toLocalCoordinates _ point = point
 
 -- | Get an array with all the children owned by a geometry
-children :: forall id action. Geometry id action -> forall result. (forall subaction. (subaction -> action) -> Geometry id subaction -> result) -> Array result
-children (Group { children }) f = f identity <$> children
-children (Reporter { target }) f = [ f identity target ]
-children (Transform { target }) f = [ f identity target ]
-children (LockBounds { target }) f = [ f identity target ]
-children (MapAction existential) f = [ existential # runExists \(MapActionF { target, map }) -> f map target ]
-children _ _ = []
+children :: forall id action. GeometryF id action ~> Array
+children (Group { children }) = children
+children (Reporter { target }) = [ target ]
+children (Transform { target }) = [ target ]
+children _ = []
 
 -- | Get an existential with the attributes carried around by a geometry
-attributes :: forall id action result. Geometry id action -> result -> (forall r. Record (GeometryAttributes id action r) -> result) -> result
+attributes :: forall id action inner result. GeometryF id action inner -> result -> (forall r. Record (GeometryAttributes id action inner r) -> result) -> result
 attributes (Circle attributes) _ f = f attributes
 attributes (Rect attributes) _ f = f attributes
 attributes (Line attributes) _ f = f attributes
 attributes (Group attributes) _ f = f attributes
 attributes (Text attributes) _ f = f attributes
 attributes (Transform attributes) _ f = f attributes
-attributes None _ f = f $ (Closed.coerce {} :: Record (GeometryAttributes id action ()))
+attributes None _ f = f $ (Closed.coerce {} :: Record (GeometryAttributes id action inner ()))
 attributes _ default _ = default
 
--- | Collect analytics reported by all the reporter components inside a geometry
-report :: forall id action. Hashable id => Ask Context2D => Geometry id action -> ReporterOutput id
+{- -- | Collect analytics reported by all the reporter components inside a geometry
+report :: forall id action. Hashable id => Ask Context2D => Algebra (GeometryF id action) (ReporterOutput id)
 report (Rect _) = emptyReporterOutput
 report (Circle _) = emptyReporterOutput
 report (Line _) = emptyReporterOutput
 report (Text _) = emptyReporterOutput
 report None = emptyReporterOutput
-report (MapAction existential) = existential # runExists \(MapActionF { target }) -> report target
-report (LockBounds { target }) = report target
 report (Group attributes)
-  = attributes.children <#> report
+  = attributes.children
   # foldr mergeReporterOutputs emptyReporterOutput
 report (Transform attributes)
   = over _absoluteBounds (map transformBounds)
   $ over _transforms (map transformTransform)
-  $ report attributes.target
+  $ attributes.target
   where
   transformBounds :: AABB -> AABB
   transformBounds = AABB.points >>> map (multiplyVector attributes.transform) >>> AABB.fromPoints1
@@ -400,7 +382,7 @@ report (Reporter { target, id, reportAbsoluteBounds, reportRelativeBounds, repor
   ids = Forest.annotate id childReport.ids
 
   childReport :: ReporterOutput id
-  childReport = report target
+  childReport = target -}
 
 mergeReporterOutputs :: forall id. Hashable id => ReporterOutput id -> ReporterOutput id -> ReporterOutput id
 mergeReporterOutputs a b =
@@ -444,4 +426,4 @@ _transforms = prop (Proxy :: _ "transforms")
 foreign import measureText :: Context2D -> Opt String -> String -> TextMetrics
 
 ---------- Typeclass instances
-derive instance Newtype (MapActionF id to from) _
+derive instance Functor (GeometryF id action)
